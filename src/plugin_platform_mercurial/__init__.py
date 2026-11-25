@@ -13,8 +13,9 @@ What it reads, when the platform asks and never on its own:
 What it changes, from its page alone (PAGE_ONLY_HOOKS, and checked again inside each): the folders it looks under
 (kept through the login as MERCURIAL_FOLDERS); and hg serve, installed, started, stopped and removed only as a
 container, through the container plugin you pick, in that plugin's plans you approve (the library's ContainedService):
-read-only, on this PC alone (hg serve has no sign-in of its own, so Expose… is refused). No image of hg serve is pinned
-in this release (recipe.py says why): Install… refuses in words until one is. No repository here is touched."""
+read-only, on this PC alone (hg serve has no sign-in of its own, so Expose… is refused). Its image is built here from
+two pins (recipe.BUILD: a Python base by digest, Mercurial's wheel by sha256), and Install… refuses in words until the
+library has a build plan (SERVICE-INTERFACE.md §10). No repository here is touched."""
 from __future__ import annotations
 
 import os

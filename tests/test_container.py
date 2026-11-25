@@ -3,6 +3,8 @@ stand-ins alone: no docker, no process, no socket. No image is pinned in this re
 a test's pin, it installs read-only, on this PC alone, and Expose… is refused (hg serve has no sign-in of its own)."""
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from liminal_libs.instances import Refusal
@@ -22,14 +24,26 @@ def world(tmp_path, pins=PIN):
     return ServiceWorld(p, folder=tmp_path), p
 
 
-def test_no_image_is_pinned_and_install_says_so(tmp_path):
+def test_its_image_is_built_here_and_install_waits_for_the_build_plan(tmp_path):
     assert recipe.PINS == {}
     w, p = world(tmp_path, pins=None)
     w.grant()
     with pytest.raises(Refusal, match="its recipe has no linux image"):
         w.ask("service_install", w.HOST, w.TARGET, "hgserve", "no")
-    with pytest.raises(Refusal, match="no image pinned yet"):
+    with pytest.raises(Refusal, match="the image is built here: waits for the library's build plan"):
         recipe.spec("linux", "hgserve", {}, None)
+
+
+def test_its_build_pins_are_read_and_its_dockerfile_reaches_nothing():
+    b = recipe.BUILD["linux"]
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", b["base"]["digest"]) and b["base"]["digest"] != UNREAD
+    assert re.fullmatch(r"[0-9a-f]{64}", b["wheel"]["sha256"]) and b["wheel"]["size"] > 0
+    assert b["wheel"]["name"].startswith("mercurial-7.2.4-cp313-cp313-manylinux") and "3.13" in b["base"]["ref"]
+    assert b["wheel"]["url"].startswith("https://files.pythonhosted.org/") and b["wheel"]["url"].endswith(b["wheel"]["name"])
+    d = recipe.dockerfile()
+    assert d.startswith(f"FROM docker.io/library/python@{b['base']['digest']}\n")
+    assert f"COPY {b['wheel']['name']} " in d and "--no-index --no-deps" in d and f"USER {recipe.UID}" in d
+    assert "http" not in d and "apt-get" not in d and "curl" not in d
 
 
 def test_an_unread_pin_is_refused(tmp_path):

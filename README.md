@@ -18,11 +18,22 @@ Mercurial for Liminal, one of the platform's Source Control plugins (Monday list
   hgweb.config), its repositories in a volume (/srv/hg), a first repository `main` made at its first start, on this
   PC alone (127.0.0.1:8000). hg serve has no sign-in of its own, so Expose… is always refused.
 
-## No image yet
+## Its image, built here
 
 Mercurial's makers publish no image of hg serve, and no maintained one was found on Docker Hub (heptapod/heptapod is
-a whole GitLab with Mercurial, not hg serve). `PINS` is empty: **Install… refuses in words until a release pins one**
-(an image with /bin/sh and hg on PATH). Which image is yours to choose.
+a whole GitLab with Mercurial, not hg serve). The user's answer of 2026-11-25, "Build one here": `recipe.BUILD` names
+an image made on this PC from two pins, both read on 2026-11-25 with nothing downloaded:
+
+- the base, `docker.io/library/python:3.13.18-slim-trixie`, by its linux/amd64 manifest's digest
+  `sha256:e123d49d…d2b2168d` (its index `sha256:7249d558…8c1fce50`; 43.1 MB compressed), read from Docker Hub;
+- Mercurial 7.2.4's wheel for CPython 3.13 on manylinux x86_64 (GPL-2.0-or-later, 7.6 MB), by its sha256
+  `75a2277a…8c114729`, read from PyPI's JSON API.
+
+`recipe.dockerfile()` joins them: `FROM` the base by digest, the wheel copied in (the build context's one file, checked
+against its sha256 first) and installed with `--no-index --no-deps`, a user `hg` of uid 1000 owning `/srv/hg`,
+`HGPLAIN=1`. Nothing in it reaches the network. The library has no plan for building an image yet (designed in
+SERVICE-INTERFACE.md §10), so `PINS` stays empty and **Install… refuses: "the image is built here: waits for the
+library's build plan"**.
 
 ## Tests
 
