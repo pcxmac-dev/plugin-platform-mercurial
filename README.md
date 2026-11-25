@@ -31,9 +31,11 @@ an image made on this PC from two pins, both read on 2026-11-25 with nothing dow
 
 `recipe.dockerfile()` joins them: `FROM` the base by digest, the wheel copied in (the build context's one file, checked
 against its sha256 first) and installed with `--no-index --no-deps`, a user `hg` of uid 1000 owning `/srv/hg`,
-`HGPLAIN=1`. Nothing in it reaches the network. The library has no plan for building an image yet (designed in
-SERVICE-INTERFACE.md §10), so `PINS` stays empty and **Install… refuses: "the image is built here: waits for the
-library's build plan"**.
+`HGPLAIN=1`. Nothing in it reaches the network. Since 0.2.0 the server part says them as liminal-libs 1.97.0's build
+pin (`recipe.build_pin()`, tagged `liminal/mercurial-server:7.2.4-py3.13.18`), so **Install… is offered** on a
+container plugin that builds images (Docker 0.5.0): its plan says the base pulled by digest, the wheel fetched from
+files.pythonhosted.org and checked by its sha256, and the Dockerfile whole, and asks `accept_build`; nothing is fetched
+or built before your approval, and the same pins are never built twice.
 
 ## Tests
 

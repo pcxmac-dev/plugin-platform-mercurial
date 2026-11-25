@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plugin-platform-mercurial"
-version = "0.1.0"  # the plugin's own release (CHANGELOG.md); the app shows it on the Plugins view
+version = "0.2.0"  # the plugin's own release (CHANGELOG.md); the app shows it on the Plugins view
 description = "Mercurial for Liminal: Mercurial's version and the repositories under the folders you name, each read from its own files, and hg serve (read-only, this PC alone) run in a container through the container plugin you pick."
 readme = "README.md"
 requires-python = ">=3.10"
 # the library it plugs into (the machine kind: liminal_libs.machines, plugin API 2.2); 1.94.0: ContainedService, the
 # base its server is built on (in containers alone, through a container plugin's plans)
-dependencies = ["liminal-libs>=1.94.0"]
+dependencies = ["liminal-libs>=1.97.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

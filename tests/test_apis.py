@@ -42,7 +42,7 @@ def test_the_command_line_card_names_every_command_it_runs_and_no_other():
 
 def test_the_server_card_says_it_has_no_sign_in():
     server = card(cards.SERVER)
-    assert "no sign-in" in server.auth and recipe.PINS == {}
+    assert "no sign-in" in server.auth and recipe.PINS == {} and recipe.BUILD["linux"]["base"]["digest"]
     assert not any(c.costs for a in MACHINE.apis for c in a.calls)
 
 

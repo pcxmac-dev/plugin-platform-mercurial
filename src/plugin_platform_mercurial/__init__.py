@@ -14,8 +14,9 @@ What it changes, from its page alone (PAGE_ONLY_HOOKS, and checked again inside 
 (kept through the login as MERCURIAL_FOLDERS); and hg serve, installed, started, stopped and removed only as a
 container, through the container plugin you pick, in that plugin's plans you approve (the library's ContainedService):
 read-only, on this PC alone (hg serve has no sign-in of its own, so Expose… is refused). Its image is built here from
-two pins (recipe.BUILD: a Python base by digest, Mercurial's wheel by sha256), and Install… refuses in words until the
-library has a build plan (SERVICE-INTERFACE.md §10). No repository here is touched."""
+two pins (recipe.BUILD: a Python base by digest, Mercurial's wheel by sha256) by the library's build plan (liminal-libs
+1.97.0, SERVICE-INTERFACE.md §10): Install… is offered on a container plugin that builds images (Docker 0.5.0). No
+repository here is touched."""
 from __future__ import annotations
 
 import os
@@ -33,7 +34,7 @@ from . import folders as F
 from . import recipe, repos
 from .tool import Runner, ToolError, version_of
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 READ_S = 30.0
 ROWS = 200
 FOLDERS = "MERCURIAL_FOLDERS"

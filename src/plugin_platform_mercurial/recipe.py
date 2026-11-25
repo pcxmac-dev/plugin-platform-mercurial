@@ -6,13 +6,15 @@ One part, `server`: `hg serve` on 8000, its repositories in the `repos` volume (
 configuration seeded into the new volume (.liminal/hgweb.config: every repository under /srv/hg, pushes refused); a
 first repository, `main`, made at the first start (hg init).
 
-Two things hold it back, both said on its page:
+Two things are its own, both said on its page:
 - **Its image is built here** (the user, 2026-11-25: "Build one here"): Mercurial's makers publish no image of hg serve
   and no maintained one was found, so `BUILD` says one made on this PC from two pins read on 2026-11-25, nothing
   downloaded then: the Python base image by its amd64 manifest's digest (Docker Hub) and Mercurial's wheel by its
-  sha256 (PyPI's JSON API), with the Dockerfile that joins them (`DOCKERFILE`: the wheel installed with no index and
-  no dependency, a user of its own, uid 1000). The library has no plan for building an image yet
-  (SERVICE-INTERFACE.md §10 designs it), so PINS stays empty and Install… refuses in words (BUILD_WAITS) until it has.
+  sha256 (PyPI's JSON API), with the Dockerfile that joins them (`dockerfile()`: the wheel installed with no index and
+  no dependency, a user of its own, uid 1000). Since 0.2.0 the part says them as the library's build pin (liminal-libs
+  1.97.0's `containers.BuildPin`, `build_pin()`): its container plugin's plan says the base pulled by digest, the wheel
+  fetched from files.pythonhosted.org and checked by its sha256, and the Dockerfile whole, and asks accept_build;
+  nothing is fetched or built before your approval. PINS (a maker's image by digest) stays empty: a test's alone.
 - **hg serve has no sign-in of its own** (Mercurial's own words: it is for quick sharing; a sign-in is a web server's
   in front of hgweb). So it is read-only and stays on this PC: Expose… is refused (lan_ready), and a push is refused
   by its configuration (allow-push empty)."""
@@ -27,7 +29,7 @@ OWNER = "mercurial"
 WEB_PORT = 8000
 MEMORY_MB = 256
 WEB_CONF = ".liminal/hgweb.config"  # inside the repos volume
-PINS: dict = {}  # none: its image is built here (BUILD), once the library has a build plan
+PINS: dict = {}  # none: its image is built here (BUILD); a test may hand a maker's image instead
 UID = 1000  # the image's own user, made by DOCKERFILE
 BUILD = {  # read 2026-11-25; nothing downloaded then
     "linux": {
@@ -42,11 +44,10 @@ BUILD = {  # read 2026-11-25; nothing downloaded then
                            "manylinux_2_28_x86_64.whl"),
                       sha256="75a2277a5691d28fa2a5a791e033f0c2b72a09b9ac9b83ebd8d3dd736c114729", size=7587835,
                       version="7.2.4", licence="GPL-2.0-or-later", page="https://pypi.org/project/mercurial/7.2.4/"),
-        "tag": "liminal/mercurial-hgserve:7.2.4-py3.13.18",
+        "version": "7.2.4-py3.13.18",  # tagged liminal/mercurial-server:<version> (the library's rule)
     },
 }
-BUILD_WAITS = "the image is built here: waits for the library's build plan"
-NO_IMAGE = BUILD_WAITS
+NO_IMAGE = "hg serve's image is built here for Linux alone: no Windows one"
 NO_SIGN_IN = ("hg serve has no sign-in of its own (a web server in front of hgweb gives one): it stays on this PC, "
               "read-only")
 HGWEB = """# seeded by Liminal (plugin-platform-mercurial 0.1.0) into a new volume, once: yours from then on
@@ -57,6 +58,18 @@ allow-push =
 push_ssl = true
 allow-archive =
 """
+
+
+def build_pin(system: str = "linux") -> dict:
+    """The server part's build pin (liminal-libs 1.97.0's containers.BuildPin), from BUILD and dockerfile()."""
+    b = BUILD[system]
+    base, wheel = b["base"], b["wheel"]
+    return {"base": {"ref": base["ref"], "digest": base["digest"], "system": system, "platforms": [base["platform"]],
+                     "size": base["size"], "licence": base["licence"], "page": base["page"]},
+            "files": [{k: wheel[k] for k in ("name", "url", "sha256", "size", "licence", "page")}],
+            "dockerfile": dockerfile(system), "tag": f"liminal/{OWNER}-server:{b['version']}", "version": b["version"],
+            "licence": f"{wheel['licence']} (Mercurial {wheel['version']}); {base['licence']}",
+            "page": "https://www.mercurial-scm.org/", "tar": True}
 
 
 def dockerfile(system: str = "linux") -> str:
@@ -84,15 +97,19 @@ START = "; ".join((
 
 
 def spec(system: str, name: str, options: Mapping, pins: Mapping | None = None) -> ServiceSpec:
-    """hg serve's spec for a system (Linux alone), from `pins` (PINS unless a test's)."""
+    """hg serve's spec for a system (Linux alone): its image built here (BUILD), or a test's pinned image (`pins`)."""
     pins = pins if pins is not None else PINS
-    if system not in pins:
-        raise Refusal(NO_IMAGE if not pins else f"hg serve has no {system} image")
+    if system in pins:
+        image = {"image": dict(pins[system]["server"])}
+    elif system in BUILD:
+        image = {"build": build_pin(system)}
+    else:
+        raise Refusal(NO_IMAGE)
     fit = bool(options.get("fit"))
     ports = list(options.get("ports") or [])
     host = int(ports[0]) if ports else WEB_PORT
     server = {
-        "name": "server", "image": dict(pins[system]["server"]),
+        "name": "server", **image,
         "ports": [{"name": "web", "container": WEB_PORT, "host": host, "lan": bool(options.get("lan")),
                    "about": "hgweb: browse, clone and pull (no push)"}],
         "volumes": [{"name": "repos", "path": "/srv/hg", "holds": "its repositories and its configuration",

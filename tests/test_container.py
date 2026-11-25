@@ -1,8 +1,10 @@
 """hg serve in a container, through a container plugin's plans (the library's ContainedService), on the library's
-stand-ins alone: no docker, no process, no socket. No image is pinned in this release, so Install… refuses in words; with
-a test's pin, it installs read-only, on this PC alone, and Expose… is refused (hg serve has no sign-in of its own)."""
+stand-ins alone: no docker, no process, no socket, no download. Its image is built here (liminal-libs 1.97.0's build
+plan): Install… is offered, its plan says what is fetched and built, and a stand-in wheel stands in for Mercurial's; with a
+test's pin, it installs read-only, on this PC alone, and Expose… is refused (hg serve has no sign-in of its own)."""
 from __future__ import annotations
 
+import hashlib
 import re
 
 import pytest
@@ -19,19 +21,57 @@ PIN = {"linux": {"server": dict(ref="docker.io/example/hg-serve:6.9", digest="sh
                                 page="https://hub.docker.com/r/example/hg-serve", tar=True)}}
 
 
-def world(tmp_path, pins=PIN):
+def world(tmp_path, pins=PIN, files=None):
     p = MercurialPlugin(runner=runner()[0], pace=quick_pace(), pins=pins)
-    return ServiceWorld(p, folder=tmp_path), p
+    return ServiceWorld(p, folder=tmp_path, files=files), p
 
 
-def test_its_image_is_built_here_and_install_waits_for_the_build_plan(tmp_path):
+WHEEL = b"a stand-in for Mercurial's wheel " * 32
+
+
+@pytest.fixture
+def stand_in_wheel(monkeypatch):
+    """Its BUILD with a stand-in wheel's sha256 and size (the real wheel is never downloaded in a test)."""
+    wheel = {**recipe.BUILD["linux"]["wheel"], "sha256": hashlib.sha256(WHEEL).hexdigest(), "size": len(WHEEL)}
+    monkeypatch.setitem(recipe.BUILD, "linux", {**recipe.BUILD["linux"], "wheel": wheel})
+    return {wheel["url"]: WHEEL}
+
+
+def test_its_image_is_built_here_and_install_is_offered(tmp_path):
     assert recipe.PINS == {}
     w, p = world(tmp_path, pins=None)
     w.grant()
-    with pytest.raises(Refusal, match="its recipe has no linux image"):
-        w.ask("service_install", w.HOST, w.TARGET, "hgserve", "no")
-    with pytest.raises(Refusal, match="the image is built here: waits for the library's build plan"):
-        recipe.spec("linux", "hgserve", {}, None)
+    [t] = w.service.hosts(fresh=True)["plugins"][0]["targets"]
+    assert t["offer"] == "" and t["fit"]["takes"] == ""
+    spec = recipe.spec("linux", "hgserve", {})
+    b = spec.parts[0].build
+    assert b.tag == "liminal/mercurial-server:7.2.4-py3.13.18" and b.base.digest == recipe.BUILD["linux"]["base"]["digest"]
+    assert [f.name for f in b.files] == [recipe.BUILD["linux"]["wheel"]["name"]]
+    answer = w.ask("service_install", w.HOST, w.TARGET, "hgserve", "no")
+    words = w.page(w.HOST, "plan_words", answer["plan"])
+    assert "accept_build" in [a["name"] for a in words["accepts"]]
+    step = next(s for s in words["steps"] if s.startswith("build liminal/mercurial-server"))
+    assert "fetch mercurial-7.2.4-cp313" in step and "files.pythonhosted.org" in step and recipe.dockerfile().strip() in step
+    assert w.fetch.asked == [] and w.fake.changes() == []
+    with pytest.raises(Refusal, match="hg serve's image is built here for Linux alone"):
+        recipe.spec("windows", "hgserve", {})
+
+
+def test_it_is_built_from_its_two_pins_alone_and_installed(tmp_path, stand_in_wheel):
+    w, p = world(tmp_path, pins=None, files=stand_in_wheel)
+    end = w.install("hgserve", "no")
+    assert end["ok"], end
+    [b] = w.fake.builds
+    name = recipe.BUILD["linux"]["wheel"]["name"]
+    assert set(b["files"]) == {"Dockerfile", name} and b["files"][name] == WHEEL
+    assert b["dockerfile"] == recipe.dockerfile() and b["tag"] == "liminal/mercurial-server:7.2.4-py3.13.18"
+    base = recipe.BUILD["linux"]["base"]
+    assert any(f"{base['ref']}@{base['digest']}" in " ".join(a) for a in w.fake.argv_of("pull"))
+    c = w.fake.containers["liminal-mercurial-hgserve-server"]
+    assert c["image"] == b["id"] and c["labels"]["liminal.built"] == b["id"]
+    assert p.placement("hgserve")["image"] == {"server": b["id"]}
+    with pytest.raises(Refusal, match="runs this plugin's pins already"):
+        w.ask("service_change", "update", "hgserve")
 
 
 def test_its_build_pins_are_read_and_its_dockerfile_reaches_nothing():

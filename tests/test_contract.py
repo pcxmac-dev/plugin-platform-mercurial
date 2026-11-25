@@ -59,8 +59,8 @@ def test_its_icon_is_one_the_platforms_page_draws():
 
 
 def test_its_version_floor_and_entry_point_are_pyprojects():
-    assert re.search(r'^version = "([^"]+)"', PYPROJECT, re.M).group(1) == module.__version__ == "0.1.0"
-    assert re.search(r'"liminal-libs>=([0-9.]+)"', PYPROJECT).group(1) == "1.94.0"
+    assert re.search(r'^version = "([^"]+)"', PYPROJECT, re.M).group(1) == module.__version__ == "0.2.0"
+    assert re.search(r'"liminal-libs>=([0-9.]+)"', PYPROJECT).group(1) == "1.97.0"
     assert '[project.entry-points."liminal.providers"]\nmercurial = "plugin_platform_mercurial"' in PYPROJECT
 
 
